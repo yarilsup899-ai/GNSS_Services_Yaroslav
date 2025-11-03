@@ -1,0 +1,52 @@
+import socket
+import struct
+import tempfile
+import os
+import subprocess
+from datetime import date
+
+import urllib.request
+import gzip
+
+def download_brdc_from_bkg(ods_date: date, out_dir: str)-> str:
+    year = ods_date.year
+    doy = ods_date.strftime('%j')
+
+    filename_gz = f"BRDC00IGS_R_{year}{doy}0000_01D_MN.rnx"
+    url = f"https://igs.bkg.bund.de/root_ftp/IGS/BRDC/{year}/{doy}/{filename_gz}"
+
+    out_gz = os.path.join(out_dir, filename_gz)
+
+    try:
+        urllib.request.urlretrieve(url, out_gz)
+
+        with gzip.open(out_gz, 'rb') as gz_in:
+            with open(out_gz[-3], 'wb') as rnx_out:
+                rnx_out.write(gz_in.read())
+
+        os.remove(out_gz)
+
+        return rnx_out
+    
+    except Exception as e:
+        if os.path.exists(out_gz):
+            os.remove(out_gz) 
+        raise RuntimeError(f"Не удалось скачать файл эфемерид!")
+
+
+def extract_date_from_rinex(rnx_path: str)-> date:
+    with open(rnx_path, 'r', encoding='utf-8' ) as f:
+        first_line = f.readline()
+        if not first_line or 'RINEX VERSION / TYPE' not in first_line:
+            raise ValueError("Файл не RINEX!")
+
+        for line in f:
+            if 'TIME OF FIRST OBS' in line:
+                parts = line.split()
+                year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+                return date(year, month, day)
+            
+
+
+if __name__ == '__main__':
+    download_brdc_from_bkg()
