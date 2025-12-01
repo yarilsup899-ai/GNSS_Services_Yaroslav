@@ -71,12 +71,11 @@ def extract_date_from_rinex(rnx_path: str) -> date:
 
 
 def run_rtklib_rel(base_obs_file: str, rover_obs_file: str, nav_file: str, out_file: str):
-    """Запускает rnx2rtkp в режиме rel (Single Point Positioning)."""
-    cmd = ["/Users/sergeidolin/RTKLIB/app/consapp/rnx2rtkp/gcc/rnx2rtkp", "-p", "3", "-o", out_file, base_obs_file, rover_obs_file, nav_file]
+    """Запускает rnx2rtkp в режиме rel (Relative)."""
+    cmd = ["/Users/sergeidolin/RTKLIB/app/consapp/rnx2rtkp/gcc/rnx2rtkp", "-p", "3", "-o", out_file, rover_obs_file, base_obs_file, nav_file]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"RTKLIB ошибка:\n{result.stderr}")
-
 
 def recv_exactly(sock, n):
     """Читает ровно n байт из сокета."""
@@ -91,21 +90,32 @@ def recv_exactly(sock, n):
 
 def handle_client(conn):
     print(f"[Сервер] Начало обработки клиента")
-    obs_path = eph_path = result_path = None
+    rover_path = base_path = obs_path = eph_path = result_path = None
     try:
-        # Получаем имя файла base
-        name_len = struct.unpack('>I', recv_exactly(conn, 4))[0]
-        base_filename = recv_exactly(conn, name_len).decode('utf-8')
-        file_size = struct.unpack('>Q', recv_exactly(conn, 8))[0]
-
         # Получаем имя файла rover
         name_len = struct.unpack('>I', recv_exactly(conn, 4))[0]
         rover_filename = recv_exactly(conn, name_len).decode('utf-8')
         file_size = struct.unpack('>Q', recv_exactly(conn, 8))[0]
 
         # Сохраняем RINEX во временный файл
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.obs') as f:
-            obs_path = f.name
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.25o') as f:
+            rover_path = f.name
+            total = 0
+            while total < file_size:
+                chunk = conn.recv(min(65536, file_size - total))
+                if not chunk:
+                    raise RuntimeError("Клиент разорвал соединение")
+                f.write(chunk)
+                total += len(chunk)
+
+        # Получаем имя файла base
+        name_len = struct.unpack('>I', recv_exactly(conn, 4))[0]
+        base_filename = recv_exactly(conn, name_len).decode('utf-8')
+        file_size = struct.unpack('>Q', recv_exactly(conn, 8))[0]
+
+        # Сохраняем RINEX во временный файл
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.25o') as f:
+            base_path = f.name
             total = 0
             while total < file_size:
                 chunk = conn.recv(min(65536, file_size - total))
@@ -121,7 +131,7 @@ def handle_client(conn):
         eph_path = download_brdc_from_bkg(obs_date, out_dir=os.path.dirname(obs_path))
 
         # Запускаем RTKLIB напрямую
-        result_path = obs_path.replace('.obs', '.pos')
+        result_path = obs_path.replace('.25o', '.pos')
         run_rtklib_rel(obs_path, eph_path, result_path)
 
         # Отправляем результат клиенту

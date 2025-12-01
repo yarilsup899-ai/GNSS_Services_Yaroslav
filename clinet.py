@@ -72,7 +72,7 @@ def send_rinex_rel(host: str, port: int, base_filepath: str, rover_filepath: str
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3:
         print("Использование: python client.py <путь_к_файлу.obs>")
         sys.exit(1)
-    send_rinex_rel('192.168.1.100', 9999, sys.argv[1])
+    send_rinex_rel('192.168.1.180', 9999, sys.argv[1], sys.argv[2])
