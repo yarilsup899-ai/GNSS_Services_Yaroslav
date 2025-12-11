@@ -15,39 +15,31 @@ def recv_exactly(sock, n):
     return buf
 
 
-def send_rinex_rel(host: str, port: int, rover_filepath: str, base_filepath: str):  
-    
-    if not os.path.isfile(rover_filepath):
-        print(f"Ошибка: файл не найден — {rover_filepath}")
-        return 
+def send_rinex(host: str, port: int, rover_file: str, base_file: str):
+    files_to_send = [rover_file, base_file]
 
-    with open(rover_filepath, 'rb') as f:
-        rover_file_data = f.read()
-    rover_filename = os.path.basename(rover_filepath)
-
-    if not os.path.isfile(base_filepath):
-        print(f"Ошибка: файл не найден — {base_filepath}")
-        return
-    
-    with open(base_filepath, 'rb') as f:
-        base_file_data = f.read()
-    base_filename = os.path.basename(base_filepath)
-
+    for filepath in files_to_send:
+        if not os.path.isfile(filepath):
+            print(f"Ошибка: файл не найден — {filepath}")
+            return
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((host, port))
 
-        # --- Отправка файла ---
-        s.sendall(struct.pack('>I', len(rover_filename)))      # длина имени (4 байта)
-        s.sendall(rover_filename.encode('utf-8'))              # имя файла
-        s.sendall(struct.pack('>Q', len(rover_file_data)))     # размер файла (8 байт)
-        s.sendall(rover_file_data)                             # содержимое
+         # --- Отправка количества файлов (2) ---
+        s.sendall(struct.pack('>I', 2))
+
+        # --- Отправка двух файлов ---
+        for filepath in files_to_send:
+            with open(filepath, 'rb') as f:
+                file_data = f.read()
+            filename = os.path.basename(filepath)
 
         # --- Отправка файла ---
-        s.sendall(struct.pack('>I', len(base_filename)))      # длина имени (4 байта)
-        s.sendall(base_filename.encode('utf-8'))              # имя файла
-        s.sendall(struct.pack('>Q', len(base_file_data)))     # размер файла (8 байт)
-        s.sendall(base_file_data)                             # содержимое
+            s.sendall(struct.pack('>I', len(filename)))      # длина имени (4 байта)
+            s.sendall(filename.encode('utf-8'))              # имя файла
+            s.sendall(struct.pack('>Q', len(file_data)))     # размер файла (8 байт)
+            s.sendall(file_data)                             # содержимое
 
         # --- Приём ответа ---
         # Читаем первые 4 байта для определения типа ответа
@@ -74,8 +66,13 @@ def send_rinex_rel(host: str, port: int, rover_filepath: str, base_filepath: str
             print("Некорректный ответ от сервера:", repr(prefix))
 
 
+
 if __name__ == '__main__':
-    if len(sys.argv) !=  3:
-        print("Использование: python client.py <путь_к_файлу.obs>")
+    if len(sys.argv) != 3:
+        print("Использование: python client.py <rover_file.obs> <base_file.obs>")
+        print("  rover_file.obs - файл наблюдений подвижного приемника")
+        print("  base_file.obs  - файл наблюдений базовой станции")
         sys.exit(1)
-    send_rinex_rel('192.168.1.180', 9999, sys.argv[1], sys.argv[2])
+    rover_file = sys.argv[1]
+    base_file = sys.argv[2]
+send_rinex('192.168.1.100', 9999, rover_file, base_file)

@@ -70,7 +70,7 @@ def extract_date_from_rinex(rnx_path: str) -> date:
     raise ValueError("Не найдена дата в RINEX-файле")
 
 
-def run_rtklib_rel(base_obs_file: str, rover_obs_file: str, nav_file: str, out_file: str):
+def run_rtklib_rel(rover_obs_file: str, base_obs_file: str, nav_file: str, out_file: str):
     """Запускает rnx2rtkp в режиме rel (Relative)."""
     cmd = ["/Users/sergeidolin/RTKLIB/app/consapp/rnx2rtkp/gcc/rnx2rtkp", "-p", "3", "-o", out_file, rover_obs_file, base_obs_file, nav_file]
     result = subprocess.run(cmd, capture_output=True, text=True)
